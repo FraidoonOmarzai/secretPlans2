@@ -9,11 +9,12 @@ const passportLocalMongoose = require("passport-local-mongoose");
 
 const app = express();
 
+// able us to access the entire body portion
 app.use(bodyParser.urlencoded({
    extended: true
 }));
-app.set("view engine", "ejs");
-app.use(express.static("public"));
+app.set("view engine", "ejs"); // to set ejs on our project
+app.use(express.static("public")); // for using css we write this code
 
 app.use(session({
    secret: process.env.SECRET,
@@ -24,16 +25,19 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// connecting my db to localhost
 mongoose.connect("mongodb://localhost:27017/planDB", {
    useNewUrlParser: true,
    useUnifiedTopology: true
 });
-mongoose.set("useCreateIndex", true);
+mongoose.set("useCreateIndex", true); // avoid error/warning on terminal with help of stack overflow
+mongoose.set('useFindAndModify', false); // avoid error/warning on terminal with help of stack overflow
 
+// creating schema for our db
 const planSchema = new mongoose.Schema({
    email: String,
    password: String,
-   secret: String
+   secret: [String]
 });
 
 planSchema.plugin(passportLocalMongoose);
@@ -65,19 +69,69 @@ app.get("/register", (req, res) => {
 });
 
 app.get("/logout", (req, res) => {
-   req.logout();
+   req.logout(); // got this code from doc passport
    res.redirect("/");
 });
 
 app.get("/plans", (req, res) => {
+   // first check for authentication than find specific user with id
    if (req.isAuthenticated()) {
-      res.render("plans");
+      Plan.findById(req.user.id, (err, foundUser) => {
+         if (err) {
+            console.log(err);
+         } else {
+            if (foundUser) {
+               res.render("plans", {
+                  username: foundUser.username,
+                  plans: foundUser.secret
+               });
+            }
+         }
+      });
    } else {
       res.redirect("/login");
    }
 });
 
+app.post("/submit", (req, res) => {
+   const submitedPlan = req.body.newPlan;
+
+   // we are gonna find the specific user and push the plan to that user which typed and redirect to plans
+   Plan.findById(req.user.id, (err, foundUser) => {
+      if (err) {
+         console.log(err);
+      } else {
+         if (foundUser) {
+            foundUser.secret.push(submitedPlan); // push the plan to user plans list
+            foundUser.save(() => {
+               res.redirect("/plans");
+            });
+         }
+      }
+   });
+});
+
+app.post("/delete", (req, res) => {
+   const checkedPlan = req.body.checkbox;
+
+   // find the username and than delete the specific ele from array of secrets back redirect to plans
+   Plan.findOneAndUpdate({
+         username: req.body.username
+      }, {
+         $pull: {
+            secret: checkedPlan
+         }
+      },
+      (err, found) => {
+         if (!err) {
+            res.redirect("/plans");
+         }
+      }
+   );
+});
+
 app.post("/register", (req, res) => {
+   // regirster the user for first time and redirect to his plans page
    Plan.register({
       username: req.body.username
    }, req.body.password, (err, user) => {
@@ -87,12 +141,13 @@ app.post("/register", (req, res) => {
       } else {
          passport.authenticate("local")(req, res, () => {
             res.redirect("/plans");
-         })
+         });
       }
    });
 });
 
 app.post("/login", (req, res) => {
+   // we are storying user email and password if it matchs than redirect to plans
    const user = new Plan({
       username: req.body.username,
       password: req.body.password
@@ -104,11 +159,11 @@ app.post("/login", (req, res) => {
       } else {
          passport.authenticate("local")(req, res, () => {
             res.redirect("/plans");
-         })
+         });
       }
    });
 });
 
 app.listen(3000, () => {
    console.log("running on port 3000");
-})
+});
