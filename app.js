@@ -6,6 +6,8 @@ const mongoose = require("mongoose");
 const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
+const GoogleStrategy = require('passport-google-oauth20').Strategy; 
+const findOrCreate = require("mongoose-findorcreate");
 
 const app = express();
 
@@ -37,10 +39,12 @@ mongoose.set('useFindAndModify', false); // avoid error/warning on terminal with
 const planSchema = new mongoose.Schema({
    email: String,
    password: String,
-   secret: [String]
+   secret: [String],
+   googleId:String
 });
 
 planSchema.plugin(passportLocalMongoose);
+planSchema.plugin(findOrCreate);
 
 const Plan = new mongoose.model("Plan", planSchema);
 
@@ -56,8 +60,32 @@ passport.deserializeUser(function(id, done) {
    });
 });
 
+passport.use(new GoogleStrategy({
+   clientID: process.env.CLIENT_ID,
+   clientSecret: process.env.CLIENT_SECRET,
+   callbackURL: "http://localhost:3000/auth/google/plans",
+   userProfileURL:"https://www.googleapis.com/oauth2/v3/userinfo"
+ },
+ function(accessToken, refreshToken, profile, cb) {
+   //  console.log(profile);
+   Plan.findOrCreate({ googleId: profile.id }, function (err, user) { // we have to install findorcreate
+     return cb(err, user);
+   });
+ }
+));
+
 app.get("/", (req, res) => {
    res.render("home");
+});
+
+app.get("/auth/google",
+  passport.authenticate("google", { scope: ["profile"] }));
+
+app.get("/auth/google/plans", 
+  passport.authenticate('google', { failureRedirect: "/login" }),
+   function(req, res) {
+    // Successful authentication, redirect plans.
+    res.redirect('/plans');
 });
 
 app.get("/login", (req, res) => {
@@ -83,7 +111,8 @@ app.get("/plans", (req, res) => {
             if (foundUser) {
                res.render("plans", {
                   username: foundUser.username,
-                  plans: foundUser.secret
+                  plans: foundUser.secret,
+                  userID:foundUser._id
                });
             }
          }
@@ -116,7 +145,7 @@ app.post("/delete", (req, res) => {
 
    // find the username and than delete the specific ele from array of secrets back redirect to plans
    Plan.findOneAndUpdate({
-         username: req.body.username
+         _id:req.body.userID
       }, {
          $pull: {
             secret: checkedPlan
