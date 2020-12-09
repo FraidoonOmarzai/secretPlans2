@@ -6,7 +6,8 @@ const mongoose = require("mongoose");
 const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
-const GoogleStrategy = require('passport-google-oauth20').Strategy; 
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const FacebookStrategy = require('passport-facebook').Strategy; 
 const findOrCreate = require("mongoose-findorcreate");
 
 const app = express();
@@ -37,10 +38,14 @@ mongoose.set('useFindAndModify', false); // avoid error/warning on terminal with
 
 // creating schema for our db
 const planSchema = new mongoose.Schema({
-   email: String,
+   // email: {
+   //    type:String,
+   //    default:''
+   // },
    password: String,
    secret: [String],
-   googleId:String
+   googleId:String,
+   facebookId:String
 });
 
 planSchema.plugin(passportLocalMongoose);
@@ -61,14 +66,27 @@ passport.deserializeUser(function(id, done) {
 });
 
 passport.use(new GoogleStrategy({
-   clientID: process.env.CLIENT_ID,
-   clientSecret: process.env.CLIENT_SECRET,
+   clientID: process.env.GOOGLE_CLIENT_ID,
+   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
    callbackURL: "http://localhost:3000/auth/google/plans",
    userProfileURL:"https://www.googleapis.com/oauth2/v3/userinfo"
  },
  function(accessToken, refreshToken, profile, cb) {
-   //  console.log(profile);
-   Plan.findOrCreate({ googleId: profile.id }, function (err, user) { // we have to install findorcreate
+   //  console.log(profile.name['familyName']);
+   Plan.findOrCreate({ googleId: profile.id , username:profile.name['familyName']}, function (err, user) { // we have to install findorcreate
+     return cb(err, user);
+   });
+ }
+));
+
+passport.use(new FacebookStrategy({
+   clientID: process.env.FACEBOOK_APP_ID,
+   clientSecret: process.env.FACEBOOK_APP_SECRET,
+   callbackURL: "http://localhost:3000/auth/facebook/plans"
+ },
+ function(accessToken, refreshToken, profile, cb) {
+   //  console.log(profile.displayName);
+   Plan.findOrCreate({ facebookId: profile.id, username:profile.displayName }, function (err, user) {
      return cb(err, user);
    });
  }
@@ -87,6 +105,16 @@ app.get("/auth/google/plans",
     // Successful authentication, redirect plans.
     res.redirect('/plans');
 });
+
+app.get('/auth/facebook',
+  passport.authenticate('facebook'));
+
+app.get('/auth/facebook/plans',
+  passport.authenticate('facebook', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect plans.
+    res.redirect('/plans');
+  });
 
 app.get("/login", (req, res) => {
    res.render("login");
@@ -110,7 +138,6 @@ app.get("/plans", (req, res) => {
          } else {
             if (foundUser) {
                res.render("plans", {
-                  username: foundUser.username,
                   plans: foundUser.secret,
                   userID:foundUser._id
                });
