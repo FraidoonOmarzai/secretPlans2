@@ -28,8 +28,8 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// connecting my db to localhost
-mongoose.connect("mongodb://localhost:27017/planDB", {
+// connecting my db
+mongoose.connect("mongodb+srv://Fraidoon:"+process.env.PASSPORT+"@cluster0.javdz.mongodb.net/planDB", {
    useNewUrlParser: true,
    useUnifiedTopology: true
 });
