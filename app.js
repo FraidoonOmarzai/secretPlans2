@@ -28,8 +28,8 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// connecting my db to localhost
-mongoose.connect("mongodb://localhost:27017/planDB", {
+// connecting my db
+mongoose.connect("mongodb+srv://Fraidoon:"+process.env.PASSPORT+"@cluster0.javdz.mongodb.net/planDB", {
    useNewUrlParser: true,
    useUnifiedTopology: true
 });
@@ -220,6 +220,10 @@ app.post("/login", (req, res) => {
    });
 });
 
-app.listen(3000, () => {
-   console.log("running on port 3000");
+let port = process.env.PORT;
+if (port == null || port == "") {
+  port = 3000;
+}
+app.listen(port,()=>{
+   console.log('Server is started successfully!');
 });
